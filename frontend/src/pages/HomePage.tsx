@@ -16,7 +16,7 @@ export function HomePage() {
       const room = await createRoom()
       navigate(`/room/${room.room_id}`)
     } catch {
-      setError('Failed to create room — is the backend running?')
+      setError('Failed to create room — the backend may still be waking up (cold start can take up to 60 seconds). Try again.')
       setLoading(false)
     }
   }
@@ -38,7 +38,10 @@ export function HomePage() {
       }}
     >
       <h1 style={{ margin: '0 0 4px' }}>Blair's MiniRTC</h1>
-      <p style={{ margin: '0 0 32px', color: '#71717a' }}>Hello world. Let's chat.</p>
+      <p style={{ margin: '0 0 8px', color: '#71717a' }}>Hello world. Let's chat.</p>
+      <p style={{ margin: '0 0 32px', fontSize: 13, color: '#a1a1aa', lineHeight: 1.5 }}>
+        First load after idle may take up to 60 seconds while Render cold-starts the backend.
+      </p>
 
       {error && (
         <p style={{ color: '#dc2626', marginBottom: 16, fontSize: 14 }}>{error}</p>

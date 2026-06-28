@@ -46,7 +46,7 @@ A `render.yaml` is included at the repo root. Connect the repo to Render and it 
 Update the URLs in `render.yaml` to match your actual Render service names after first deploy.
 
 **Deployed on:** Render free tier — [minirtc.onrender.com](https://minirtc.onrender.com)  
-> First load may take ~30s if the backend is cold (Render free tier spins down after 15 min idle).
+> First load after idle may take up to 60 seconds while Render cold-starts the backend.
 
 ---
 
