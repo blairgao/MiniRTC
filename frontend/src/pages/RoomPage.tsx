@@ -12,9 +12,10 @@ export function RoomPage() {
   const { roomId } = useParams<{ roomId: string }>()
   const navigate = useNavigate()
 
-  const { sendMessage, lastMessage, signalingState, disconnect } = useSignaling(roomId!)
+  const { sendMessage, messagesRef, queueVersion, sessionId, lastMessage, signalingState, disconnect } =
+    useSignaling(roomId!)
   const { localStream, remoteStream, callState, error, toggleAudio, toggleVideo, leave } =
-    useWebRTC({ sendMessage, lastMessage })
+    useWebRTC({ sendMessage, messagesRef, queueVersion, sessionId })
 
   useEffect(() => {
     if (

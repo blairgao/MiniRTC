@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react'
 
 import type { ServerMessage, SignalMessage } from '../types/signaling'
 
@@ -11,10 +11,12 @@ export type CallState = 'idle' | 'waiting_for_peer' | 'negotiating' | 'in_call' 
 
 interface Props {
   sendMessage: (msg: SignalMessage) => void
-  lastMessage: ServerMessage | null
+  messagesRef: MutableRefObject<ServerMessage[]>
+  queueVersion: number
+  sessionId: number
 }
 
-export function useWebRTC({ sendMessage, lastMessage }: Props) {
+export function useWebRTC({ sendMessage, messagesRef, queueVersion, sessionId }: Props) {
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const roleRef = useRef<'host' | 'guest' | null>(null)
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([])
@@ -79,84 +81,94 @@ export function useWebRTC({ sendMessage, lastMessage }: Props) {
     pendingCandidatesRef.current = []
   }, [])
 
+  const processedCountRef = useRef(0)
+
+  // Reset when the signaling session reconnects (new WS open).
   useEffect(() => {
-    if (!lastMessage) return
+    processedCountRef.current = 0
+  }, [sessionId])
 
-    ;(async () => {
-      try {
-        switch (lastMessage.type) {
-          case 'joined': {
-            roleRef.current = lastMessage.role
-            setCallState('waiting_for_peer')
-            setError(null)
-            startMedia() // kick off permission prompt early; don't block on it
-            break
-          }
-
-          case 'peer_joined': {
-            if (roleRef.current !== 'host') break
-            setCallState('negotiating')
-            const stream = await startMedia()
-            const pc = buildPC(stream)
-            const offer = await pc.createOffer()
-            await pc.setLocalDescription(offer)
-            sendMessage({ type: 'offer', sdp: offer.sdp! })
-            break
-          }
-
-          case 'offer': {
-            if (roleRef.current !== 'guest') break
-            setCallState('negotiating')
-            const stream = await startMedia()
-            const pc = buildPC(stream)
-            await pc.setRemoteDescription({ type: 'offer', sdp: lastMessage.sdp })
-            await flushCandidates(pc)
-            const answer = await pc.createAnswer()
-            await pc.setLocalDescription(answer)
-            sendMessage({ type: 'answer', sdp: answer.sdp! })
-            break
-          }
-
-          case 'answer': {
-            const pc = pcRef.current
-            if (!pc) break
-            await pc.setRemoteDescription({ type: 'answer', sdp: lastMessage.sdp })
-            await flushCandidates(pc)
-            break
-          }
-
-          case 'ice': {
-            const pc = pcRef.current
-            if (!pc || !pc.remoteDescription) {
-              pendingCandidatesRef.current.push(lastMessage.candidate)
-            } else {
-              await pc.addIceCandidate(lastMessage.candidate)
+  useEffect(() => {
+    const run = async () => {
+      while (processedCountRef.current < messagesRef.current.length) {
+        const msg = messagesRef.current[processedCountRef.current++]
+        try {
+          switch (msg.type) {
+            case 'joined': {
+              roleRef.current = msg.role
+              setCallState('waiting_for_peer')
+              setError(null)
+              startMedia() // kick off permission prompt early; don't block on it
+              break
             }
-            break
+
+            case 'peer_joined': {
+              if (roleRef.current !== 'host') break
+              setCallState('negotiating')
+              const stream = await startMedia()
+              const pc = buildPC(stream)
+              const offer = await pc.createOffer()
+              await pc.setLocalDescription(offer)
+              sendMessage({ type: 'offer', sdp: offer.sdp! })
+              break
+            }
+
+            case 'offer': {
+              if (roleRef.current !== 'guest') break
+              setCallState('negotiating')
+              const stream = await startMedia()
+              const pc = buildPC(stream)
+              await pc.setRemoteDescription({ type: 'offer', sdp: msg.sdp })
+              await flushCandidates(pc)
+              const answer = await pc.createAnswer()
+              await pc.setLocalDescription(answer)
+              sendMessage({ type: 'answer', sdp: answer.sdp! })
+              break
+            }
+
+            case 'answer': {
+              const pc = pcRef.current
+              if (!pc) break
+              await pc.setRemoteDescription({ type: 'answer', sdp: msg.sdp })
+              await flushCandidates(pc)
+              break
+            }
+
+            case 'ice': {
+              const pc = pcRef.current
+              if (!pc || !pc.remoteDescription) {
+                pendingCandidatesRef.current.push(msg.candidate)
+              } else {
+                await pc.addIceCandidate(msg.candidate)
+              }
+              break
+            }
+
+            case 'peer_left':
+              setCallState('ended')
+              setError('Peer left the call')
+              break
+
+            case 'room_full':
+              setError('This room is already in use')
+              break
+
+            case 'room_expired':
+              setError('This room has expired')
+              break
+
+            case 'room_not_found':
+              setError('Room not found or expired')
+              break
           }
-
-          case 'peer_left':
-            setCallState('ended')
-            setError('Peer left the call')
-            break
-
-          case 'room_full':
-            setError('This room is already in use')
-            break
-
-          case 'room_expired':
-            setError('This room has expired')
-            break
-
-          case 'room_not_found':
-            setError('Room not found or expired')
-            break
+        } catch (e) {
+          console.error('WebRTC error:', e)
         }
-      } catch (e) {
-        console.error('WebRTC error:', e)
       }
-    })()
-  }, [lastMessage, startMedia, buildPC, flushCandidates, sendMessage])
+    }
+
+    void run()
+  }, [queueVersion, sessionId, messagesRef, startMedia, buildPC, flushCandidates, sendMessage])
 
   // Stop camera/mic and close peer connection when the page unmounts,
   // regardless of whether the user clicked Leave.

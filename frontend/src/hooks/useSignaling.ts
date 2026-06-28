@@ -10,6 +10,9 @@ export function useSignaling(roomId: string) {
   const retriesRef = useRef(0)
   const unmountedRef = useRef(false)
 
+  const messagesRef = useRef<ServerMessage[]>([])
+  const [queueVersion, setQueueVersion] = useState(0)
+  const [sessionId, setSessionId] = useState(0)
   const [lastMessage, setLastMessage] = useState<ServerMessage | null>(null)
   const [signalingState, setSignalingState] = useState<SignalingState>('connecting')
 
@@ -25,6 +28,8 @@ export function useSignaling(roomId: string) {
     let terminal = false
 
     ws.onopen = () => {
+      messagesRef.current = []
+      setSessionId((s) => s + 1)
       setSignalingState('connected')
       retriesRef.current = 0
     }
@@ -33,6 +38,8 @@ export function useSignaling(roomId: string) {
       try {
         const msg = JSON.parse(event.data) as ServerMessage
         if (TERMINAL.has(msg.type)) terminal = true
+        messagesRef.current.push(msg)
+        setQueueVersion((v) => v + 1)
         setLastMessage(msg)
       } catch { /* ignore malformed frames */ }
     }
@@ -71,5 +78,5 @@ export function useSignaling(roomId: string) {
     wsRef.current?.close()
   }, [])
 
-  return { sendMessage, lastMessage, signalingState, disconnect }
+  return { sendMessage, messagesRef, queueVersion, sessionId, lastMessage, signalingState, disconnect }
 }
