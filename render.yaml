@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: minirtc-api
+    name: bgtalk-api
     env: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt
@@ -12,7 +12,7 @@ services:
         value: https://bgtalk.onrender.com
 
   - type: web
-    name: bgaotalk
+    name: bgtalk
     env: static
     rootDir: frontend
     buildCommand: npm install && npm run build
