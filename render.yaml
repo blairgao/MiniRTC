@@ -7,12 +7,12 @@ services:
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: ALLOWED_ORIGINS
-        value: https://minirtc.onrender.com
+        value: https://bgaotalk.onrender.com
       - key: FRONTEND_URL
-        value: https://minirtc.onrender.com
+        value: https://bgaotalk.onrender.com
 
   - type: web
-    name: minirtc
+    name: bgaotalk
     env: static
     rootDir: frontend
     buildCommand: npm install && npm run build
