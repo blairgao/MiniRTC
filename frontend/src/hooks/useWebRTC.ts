@@ -19,6 +19,7 @@ export function useWebRTC({ sendMessage, lastMessage }: Props) {
   const roleRef = useRef<'host' | 'guest' | null>(null)
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([])
   const mediaPromiseRef = useRef<Promise<MediaStream> | null>(null)
+  const localStreamRef = useRef<MediaStream | null>(null)
 
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
@@ -33,6 +34,7 @@ export function useWebRTC({ sendMessage, lastMessage }: Props) {
         video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
       })
       .then((stream) => {
+        localStreamRef.current = stream
         setLocalStream(stream)
         return stream
       })
@@ -155,6 +157,18 @@ export function useWebRTC({ sendMessage, lastMessage }: Props) {
       }
     })()
   }, [lastMessage, startMedia, buildPC, flushCandidates, sendMessage])
+
+  // Stop camera/mic and close peer connection when the page unmounts,
+  // regardless of whether the user clicked Leave.
+  useEffect(() => {
+    return () => {
+      localStreamRef.current?.getTracks().forEach((t) => t.stop())
+      localStreamRef.current = null
+      pcRef.current?.close()
+      pcRef.current = null
+      mediaPromiseRef.current = null
+    }
+  }, [])
 
   const toggleAudio = useCallback(() => {
     localStream?.getAudioTracks().forEach((t) => {
