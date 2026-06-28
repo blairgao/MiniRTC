@@ -19,7 +19,8 @@ export function RoomPage() {
   useEffect(() => {
     if (
       lastMessage?.type === 'room_not_found' ||
-      lastMessage?.type === 'room_expired'
+      lastMessage?.type === 'room_expired' ||
+      lastMessage?.type === 'peer_left'
     ) {
       setTimeout(() => navigate('/'), 2500)
     }

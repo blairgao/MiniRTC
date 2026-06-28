@@ -19,6 +19,11 @@ export function useSignaling(roomId: string) {
     const ws = new WebSocket(`${WS_BASE}/ws/${roomId}`)
     wsRef.current = ws
 
+    // Terminal messages — server closes the connection after sending these.
+    // Retrying would just get the same response, so we stop here.
+    const TERMINAL = new Set(['room_full', 'room_not_found', 'room_expired'])
+    let terminal = false
+
     ws.onopen = () => {
       setSignalingState('connected')
       retriesRef.current = 0
@@ -27,12 +32,13 @@ export function useSignaling(roomId: string) {
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data) as ServerMessage
+        if (TERMINAL.has(msg.type)) terminal = true
         setLastMessage(msg)
       } catch { /* ignore malformed frames */ }
     }
 
     ws.onclose = () => {
-      if (unmountedRef.current) return
+      if (unmountedRef.current || terminal) return
       setSignalingState('disconnected')
       if (retriesRef.current < 3) {
         retriesRef.current++

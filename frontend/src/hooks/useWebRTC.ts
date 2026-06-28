@@ -57,8 +57,10 @@ export function useWebRTC({ sendMessage, lastMessage }: Props) {
       pc.ontrack = (e) => setRemoteStream(e.streams[0])
 
       pc.onconnectionstatechange = () => {
-        if (pc.connectionState === 'connected') setCallState('in_call')
-        else if (pc.connectionState === 'failed') {
+        if (pc.connectionState === 'connected') {
+          setCallState('in_call')
+          setError(null) // clear any transient signaling errors
+        } else if (pc.connectionState === 'failed') {
           setCallState('ended')
           setError('Connection failed — check your network')
         }
@@ -84,6 +86,7 @@ export function useWebRTC({ sendMessage, lastMessage }: Props) {
           case 'joined': {
             roleRef.current = lastMessage.role
             setCallState('waiting_for_peer')
+            setError(null)
             startMedia() // kick off permission prompt early; don't block on it
             break
           }

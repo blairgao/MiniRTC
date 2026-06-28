@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocketState
 
 from state import rooms
 
@@ -24,6 +25,12 @@ async def ws_endpoint(websocket: WebSocket, room_id: str):
         await websocket.close(code=4010)
         rooms.pop(room_id, None)
         return
+
+    # Drop any stale connections left over from abrupt disconnects.
+    room.connections = [
+        c for c in room.connections
+        if c.client_state == WebSocketState.CONNECTED
+    ]
 
     if len(room.connections) >= 2:
         await websocket.accept()
