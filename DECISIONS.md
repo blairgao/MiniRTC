@@ -10,13 +10,15 @@
 
 WebRTC signaling needs to send a handful of messages - an SDP offer, an SDP answer, and a burst of ICE candidatess. We need to do these with the lowest possible latency. The faster signaling completes, the sooner the P2P media stream starts.
 
-| Transport | Latency | Complexity | Notes |
-|---|---|---|---|
-| HTTP polling | High (poll interval delay) | Low | Each poll is a full HTTP round-trip; you trade latency for simplicity |
-| Server-Sent Events (SSE) | Medium | Medium | Server→client only; you'd still need HTTP for client→server, making the protocol asymmetric |
-| **WebSocket** | **Low** | **Low** | Full-duplex, single persistent connection, browser-native, fits signaling message pattern perfectly |
-| WebTransport | Very low | High | QUIC-based, excellent but Safari support is incomplete as of mid-2026 |
-| 3rd-party (Pusher, Ably) | Low | Very low | Works well but adds cost dependency and sends your SDP through an external service |
+
+| Transport                | Latency                    | Complexity | Notes                                                                                               |
+| ------------------------ | -------------------------- | ---------- | --------------------------------------------------------------------------------------------------- |
+| HTTP polling             | High (poll interval delay) | Low        | Each poll is a full HTTP round-trip; you trade latency for simplicity                               |
+| Server-Sent Events (SSE) | Medium                     | Medium     | Server→client only; you'd still need HTTP for client→server, making the protocol asymmetric         |
+| **WebSocket**            | **Low**                    | **Low**    | Full-duplex, single persistent connection, browser-native, fits signaling message pattern perfectly |
+| WebTransport             | Very low                   | High       | QUIC-based, excellent but Safari support is incomplete as of mid-2026                               |
+| 3rd-party (Pusher, Ably) | Low                        | Very low   | Works well but adds cost dependency and sends your SDP through an external service                  |
+
 
 **Why not a dedicated signaling service?**  
 Cost. Those services include both signaling AND media relay (TURN). MiniRTC's goal is to own the signaling layer for transparency and cost control. TURN is handled separately.
@@ -25,7 +27,11 @@ Cost. Those services include both signaling AND media relay (TURN). MiniRTC's go
 
 ---
 
+
+
 ## 2. State Storage: In-Memory Now, Redis to Scale
+
+
 
 ### 2.1 Why in-memory
 
@@ -67,16 +73,22 @@ The most important scaling property of WebRTC: **the server carries zero media b
 
 ### 2.5 Scaling steps in order of impact
 
-| Phase | Bottleneck | Fix |
-|---|---|---|
-| 1: < 500 concurrent rooms | Nothing | Single server + in-memory dict |
+
+| Phase                      | Bottleneck              | Fix                             |
+| -------------------------- | ----------------------- | ------------------------------- |
+| 1: < 500 concurrent rooms  | Nothing                 | Single server + in-memory dict  |
 | 2: 500–5k concurrent rooms | Multi-instance WS relay | Redis pub/sub + shared presence |
-| 3: 5k–50k concurrent rooms | TURN bandwidth | Tiered/regional TURN |
-| 4: 50k+ concurrent rooms | Redis throughput | Redis Cluster or Redis Streams |
+| 3: 5k–50k concurrent rooms | TURN bandwidth          | Tiered/regional TURN            |
+| 4: 50k+ concurrent rooms   | Redis throughput        | Redis Cluster or Redis Streams  |
+
 
 ---
 
+
+
 ## 3. NAT Traversal and TURN in Real Life
+
+
 
 ### What STUN and TURN actually do
 
@@ -93,8 +105,11 @@ Some NATs are "symmetric". They assign a different external port for every desti
 TURN actually carries your audio/video traffic. That makes it expensive.
 
 **Why v1 ships without TURN:**  
+
 - STUN handles ~85% of users for free
 - TURN requires bandwidth billing (typically $0.40–$1.20 per GB on commercial TURN providers)
+
+
 
 ### TURN strategy for production
 
@@ -140,60 +155,45 @@ For production, return TURN credentials from the API so the `RTCPeerConnection` 
 
 ---
 
+
+
 ## 4. Cost Model
+
+
 
 ### Assumptions (10k rooms/day, average 20-min call, 1 Mbit/s audio+video)
 
-| Component | Cost estimate |
-|---|---|
-| Backend server | ~$6/mo |
-| Redis (when scaling to multi-instance) | $10–$15/mo |
-| STUN | $0 |
-| TURN relay bandwidth | ~1.7 TB/mo → ~$1–$3/mo self-hosted |
-| Frontend static hosting | $0 |
 
-### How you'd keep costs sane
+| Component                              | Cost estimate                      |
+| -------------------------------------- | ---------------------------------- |
+| Backend server                         | ~$6/mo                             |
+| Redis (when scaling to multi-instance) | $10–$15/mo                         |
+| STUN                                   | $0                                 |
+| TURN relay bandwidth                   | ~1.7 TB/mo → ~$1–$3/mo self-hosted |
+| Frontend static hosting                | $0                                 |
 
-Most of the bill is TURN bandwidth — everything else is cheap or free. The strategy is to avoid relaying media unless you have to, and to make abuse expensive to pull off.
 
-**Keep media off the server.** WebRTC is P2P by default. The FastAPI process only relays tiny JSON signaling messages over WebSocket. A $6 VPS handles thousands of concurrent rooms because it never touches audio/video.
 
-**STUN first, TURN last.** STUN is free and works for ~85% of users. Ship v1 without TURN; add it only when you need full NAT coverage. When you do, return time-limited HMAC credentials from the API (see §3) so stolen creds expire and can't be reused to drain your bandwidth.
+
+### How to keep costs sane
+
+**Keep media off the server.** WebRTC is P2P by default. The FastAPI process only relays tiny JSON signaling messages over WebSocket. Our backend server should handles thousands of concurrent rooms because it never touches audio/video.
+
+**STUN first, TURN last.** STUN is free and works for ~85% of users. Ship v1 without TURN; add it only when we need full NAT coverage. When we do, return time-limited HMAC credentials from the API so stolen creds expire and can't be reused to drain our bandwidth.
 
 **Cap blast radius.** Short room expiry (1h), rate limits on room creation, and no room listing mean an attacker can't enumerate or hoard rooms. Two-participant cap keeps per-room TURN relay bounded.
 
-**Self-host TURN until it hurts.** A coturn instance on the same $6 VPS covers low volume at near-zero marginal cost. Move to a dedicated TURN box or a metered provider only when simultaneous relay sessions outgrow one machine (~100 concurrent TURN users is a reasonable coturn ceiling on a small VPS).
+**Self-host TURN** A coturn instance on the same backend server covers low volume at near-zero marginal cost. Move to a dedicated TURN box or a metered provider only when simultaneous relay sessions outgrow one machine (~100 concurrent TURN users is a reasonable coturn ceiling on a small VPS).
 
-**Don't pay for scale you don't need.** In-memory state, no database, static frontend — all correct at this scope. Redis and a second backend instance only enter when a single process can't keep up (see §2). An SFU is unnecessary for 1:1 and would dominate cost if added prematurely.
+**Don't pay for scale that we don't need.** In-memory state, no database, static frontend. Redis and a second backend instance only enter when a single process can't keep up.
 
-**Let the client save bandwidth.** Adaptive bitrate and sensible defaults (720p cap, 30 fps) reduce TURN egress for the minority of calls that relay. Audio-only fallback on poor networks cuts relay cost further.
+### What Was Skipped and Why
 
-At 10k rooms/day with these constraints, total infrastructure stays in the **~$10–$20/mo** range — dominated by one small VPS and occasional TURN egress, not by signaling or storage.
+**No TURN server (v1):** Adds operational cost and complexity. STUN covers most users; acceptable for a demo. 
 
----
+**No database (v1):** Room state is ephemeral.
 
-## 5. Technology Role Summary
-
-| Technology | Role in MiniRTC |
-|---|---|
-| **WebRTC** | Browser API that establishes encrypted P2P audio/video streams. Handles codec negotiation (SDP), ICE candidate gathering, DTLS-SRTP encryption, and adaptive bitrate. The server is never in the media path. |
-| **WebSocket** | Persistent, full-duplex TCP channel used for signaling — relaying SDP offers/answers and ICE candidates between peers before the P2P connection is established. |
-| **FastAPI** | Async Python web framework. Hosts the REST API and WebSocket signaling endpoint. Chosen for native async support (handles concurrent WS connections without threads) and automatic OpenAPI docs. |
-| **In-memory state** | A Python dict in the FastAPI process holds all room and presence state. No database. Room state is ephemeral (lifetime = call duration), so persistence adds no value and meaningful complexity. See §2 for what replaces this at scale. |
-| **React + TypeScript** | Frontend SPA. TypeScript catches signaling message type mismatches at compile time. React hooks (`useWebRTC`, `useSignaling`) encapsulate the stateful WebRTC and WebSocket logic away from UI components. |
-| **ICE / STUN** | ICE (Interactive Connectivity Establishment) is the protocol that discovers viable network paths between peers. STUN tells each peer its public-facing IP:port. |
-| **TURN** | A relay server that proxies media when direct P2P fails (symmetric NAT). Required for full connectivity coverage but adds bandwidth cost. |
-| **SDP (Session Description Protocol)** | Text format that describes a peer's media capabilities (codecs, bitrates, encryption keys). The "offer" and "answer" in the signaling exchange are SDP documents. |
-
----
-
-## 6. What Was Skipped and Why
-
-**No TURN server (v1):** Adds operational cost and complexity. STUN covers most users; acceptable for a demo. See §3 for the full plan.
-
-**No database (v1):** Room state is ephemeral — in-memory is correct, not a shortcut. See §2.
-
-**No Redis (v1):** Single-process deployment doesn't need it. Redis enters when you scale to multiple FastAPI instances, as described in §2.3.
+**No Redis (v1):** Single-process deployment doesn't need it. Redis enters when we scale to multiple FastAPI instances.
 
 **No auth/user accounts:** Room URLs act as capability tokens (knowing the UUIDv4 URL grants access). Adding OAuth would be a worthwhile v2 feature for call history and room ownership.
 
