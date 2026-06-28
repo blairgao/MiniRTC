@@ -34,7 +34,7 @@ function VideoTile({ stream, muted, label }: TileProps) {
           height: '100%',
           objectFit: 'cover',
           display: 'block',
-          transform: muted ? 'scaleX(-1)' : 'none',
+          transform: 'scaleX(-1)',
         }}
       />
       {!stream && (
