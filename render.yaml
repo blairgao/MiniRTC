@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: minirtc-api
+    env: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ALLOWED_ORIGINS
+        value: https://minirtc.onrender.com
+      - key: FRONTEND_URL
+        value: https://minirtc.onrender.com
+
+  - type: web
+    name: minirtc
+    env: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://minirtc-api.onrender.com
