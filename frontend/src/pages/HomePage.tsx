@@ -16,7 +16,7 @@ export function HomePage() {
       const room = await createRoom()
       navigate(`/room/${room.room_id}`)
     } catch {
-      setError('Failed to create room — the backend may still be waking up (cold start can take up to 60 seconds). Try again.')
+      setError('Failed to create room — is the backend running?')
       setLoading(false)
     }
   }

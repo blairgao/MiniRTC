@@ -2,6 +2,8 @@
 
 Share a link, start talking. MiniRTC is a 1:1 browser-based video call product — audio and video flow directly peer-to-peer. The server only handles signaling.
 
+*First load after idle may take up to 60 seconds while Render cold-starts the backend.
+
 ---
 
 ## What it does
