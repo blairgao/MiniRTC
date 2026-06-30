@@ -1,16 +1,18 @@
 # MiniRTC
 
-Share a link, start talking. MiniRTC is a 1:1 browser-based video call product — audio and video flow directly peer-to-peer. The server only handles signaling.
+Share a link, start talking. MiniRTC is a 1:1 browser-based video call product.
 
-*First load after idle may take up to 60 seconds while Render cold-starts the backend.
+> First load after idle may take up to 60 seconds while Render cold-starts the backend.
+
+**Docs:** [DESIGN.md](DESIGN.md) (architecture, API, call flow) · [DECISIONS.md](DECISIONS.md) (tradeoffs, scaling, cost model)
 
 ---
 
 ## What it does
 
-- Create a room → share the URL
+- Create a room → share the Room ID
 - Two people join the same room → call starts automatically
-- Audio required, video optional
+- Audio and video are on by default
 - No accounts, no installs, no plugins
 
 **Call controls:** Mute/Unmute · Camera on/off · Leave
@@ -48,12 +50,12 @@ A `render.yaml` is included at the repo root. Connect the repo to Render and it 
 Update the URLs in `render.yaml` to match your actual Render service names after first deploy.
 
 **Deployed on:** Render free tier — [minirtc.onrender.com](https://minirtc.onrender.com)  
-> First load after idle may take up to 60 seconds while Render cold-starts the backend.
 
 ---
 
 ## What Was Skipped and Why
 
+See [DECISIONS.md](DECISIONS.md) for the full rationale, scaling path, and cost model. Summary:
 **No TURN server (v1):** Adds operational cost and complexity. STUN covers most users; acceptable for a demo. 
 
 **No database (v1):** Room state is ephemeral.
