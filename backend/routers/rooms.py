@@ -4,10 +4,9 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from starlette.websockets import WebSocketState
 
 from schemas import RoomCreateResponse, RoomListResponse, RoomStatusResponse
-from state import create_room, rooms
+from state import broadcast_lobby, create_room, joinable_rooms, rooms
 
 limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(prefix="/api")
@@ -19,6 +18,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 @limiter.limit("10/minute")
 async def post_rooms(request: Request):
     room = create_room()
+    await broadcast_lobby()
     return RoomCreateResponse(
         room_id=room.id,
         url=f"{FRONTEND_URL}/room/{room.id}",
@@ -28,27 +28,8 @@ async def post_rooms(request: Request):
 
 @router.get("/rooms", response_model=RoomListResponse)
 async def list_rooms():
-    """Lobby view: all non-expired rooms with live participant counts."""
-    now = datetime.now(timezone.utc)
-    result = []
-    for room in rooms.values():
-        if room.expires_at < now:
-            continue
-        # Count only live sockets — abrupt disconnects leave stale entries
-        # that are otherwise only pruned on the next WS connect.
-        n = sum(
-            1 for c in room.connections
-            if c.client_state == WebSocketState.CONNECTED
-        )
-        result.append(
-            RoomStatusResponse(
-                room_id=room.id,
-                status="active" if n == 2 else "waiting",
-                participant_count=n,
-                expires_at=room.expires_at,
-            )
-        )
-    return RoomListResponse(rooms=result)
+    """Lobby view: only rooms a user can join (open seat, not expired)."""
+    return RoomListResponse(rooms=joinable_rooms())
 
 
 @router.get("/rooms/{room_id}", response_model=RoomStatusResponse)

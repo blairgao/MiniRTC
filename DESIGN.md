@@ -84,7 +84,7 @@ Room state is ephemeral by nature — it has no meaningful existence outside an 
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/api/rooms` | Create a new room; returns `room_id` |
-| `GET` | `/api/rooms` | List all active rooms (lobby view) |
+| `GET` | `/api/rooms` | List joinable rooms (open seat, not expired) |
 | `GET` | `/api/rooms/{room_id}` | Get room status and participant count |
 | `DELETE` | `/api/rooms/{room_id}` | Manually close a room (host only, future) |
 
@@ -111,7 +111,16 @@ Error cases:
 - `404` — room not found or expired
 - `409` — room already has 2 participants (full)
 
-### 3.2 WebSocket Signaling (`/ws/{room_id}`)
+### 3.2 Lobby WebSocket (`/ws/lobby`)
+
+Push channel for the `/rooms` page. On connect the server sends
+`{"type": "rooms", "rooms": [...]}` with the current joinable list (same shape
+as `GET /api/rooms`), then re-sends it whenever membership changes: a room is
+created, a peer joins or leaves, or an expired room is cleaned up. Full rooms
+(2 live connections) are excluded server-side. Registered before
+`/ws/{room_id}` so "lobby" is not treated as a room ID.
+
+### 3.3 WebSocket Signaling (`/ws/{room_id}`)
 
 The WebSocket connection is the signaling channel. It carries JSON messages between the two peers. The server does not inspect or modify SDP/ICE payloads.
 
