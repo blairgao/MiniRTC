@@ -84,6 +84,7 @@ Room state is ephemeral by nature — it has no meaningful existence outside an 
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/api/rooms` | Create a new room; returns `room_id` |
+| `GET` | `/api/rooms` | List all active rooms (lobby view) |
 | `GET` | `/api/rooms/{room_id}` | Get room status and participant count |
 | `DELETE` | `/api/rooms/{room_id}` | Manually close a room (host only, future) |
 
@@ -237,8 +238,9 @@ room_id = secrets.token_urlsafe(6)  # e.g. "xK9mP2qR"
 Additional controls:
 - **Capacity check:** WS connect rejected when `len(room.connections) >= 2`.
 - **Expiry:** `Room.expires_at` is set to `now + 1h` at creation and checked on every WS connect. Stale rooms never accumulate indefinitely in memory.
-- **No room listing:** There is no API endpoint that enumerates rooms.
+- **Room listing (lobby):** `GET /api/rooms` enumerates active rooms so users can discover and join open calls. This deliberately trades away the original "room URL as unguessable capability token" model — anyone can find waiting rooms. For private deployments, remove this endpoint (and the `/rooms` page) to restore the secret-URL model.
 - **CORS:** Backend allows only the Render frontend origin in production (set via `ALLOWED_ORIGINS` env var).
+- **WebSocket origin check:** CORS does not apply to WebSockets, so `/ws/{room_id}` validates the `Origin` header against the same `ALLOWED_ORIGINS` allowlist and rejects the handshake (403) on mismatch, blocking cross-site WebSocket hijacking. Requests without an `Origin` header (non-browser clients) are allowed.
 - **Rate limiting:** `slowapi` middleware on `POST /api/rooms` — max 10 rooms/min per IP.
 
 ### 5.2 HTTPS / WSS

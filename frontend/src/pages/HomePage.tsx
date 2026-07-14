@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 import { createRoom } from '../api/rooms'
 
@@ -100,6 +100,11 @@ export function HomePage() {
             Join
           </button>
         </form>
+        <p style={{ margin: '20px 0 0', fontSize: 14, textAlign: 'center' }}>
+          <Link to="/rooms" style={{ color: '#71717a' }}>
+            Browse open rooms →
+          </Link>
+        </p>
       </div>
     </div>
   )

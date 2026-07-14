@@ -1,4 +1,5 @@
 import json
+import os
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -8,9 +9,24 @@ from state import rooms
 
 router = APIRouter()
 
+ALLOWED_ORIGINS = {
+    origin.strip()
+    for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+    if origin.strip()
+}
+
 
 @router.websocket("/ws/{room_id}")
 async def ws_endpoint(websocket: WebSocket, room_id: str):
+    # CORS does not apply to WebSockets, so enforce the origin allowlist
+    # manually to block cross-site WebSocket hijacking. Browsers always send
+    # Origin on WS upgrades; requests without one (curl, test clients) pass.
+    origin = websocket.headers.get("origin")
+    if origin is not None and origin not in ALLOWED_ORIGINS:
+        # Close before accept → handshake rejected with HTTP 403.
+        await websocket.close(code=4003)
+        return
+
     room = rooms.get(room_id)
 
     if room is None:

@@ -14,3 +14,7 @@ class RoomStatusResponse(BaseModel):
     status: str
     participant_count: int
     expires_at: datetime
+
+
+class RoomListResponse(BaseModel):
+    rooms: list[RoomStatusResponse]

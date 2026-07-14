@@ -4,8 +4,9 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from starlette.websockets import WebSocketState
 
-from schemas import RoomCreateResponse, RoomStatusResponse
+from schemas import RoomCreateResponse, RoomListResponse, RoomStatusResponse
 from state import create_room, rooms
 
 limiter = Limiter(key_func=get_remote_address)
@@ -23,6 +24,31 @@ async def post_rooms(request: Request):
         url=f"{FRONTEND_URL}/room/{room.id}",
         expires_at=room.expires_at,
     )
+
+
+@router.get("/rooms", response_model=RoomListResponse)
+async def list_rooms():
+    """Lobby view: all non-expired rooms with live participant counts."""
+    now = datetime.now(timezone.utc)
+    result = []
+    for room in rooms.values():
+        if room.expires_at < now:
+            continue
+        # Count only live sockets — abrupt disconnects leave stale entries
+        # that are otherwise only pruned on the next WS connect.
+        n = sum(
+            1 for c in room.connections
+            if c.client_state == WebSocketState.CONNECTED
+        )
+        result.append(
+            RoomStatusResponse(
+                room_id=room.id,
+                status="active" if n == 2 else "waiting",
+                participant_count=n,
+                expires_at=room.expires_at,
+            )
+        )
+    return RoomListResponse(rooms=result)
 
 
 @router.get("/rooms/{room_id}", response_model=RoomStatusResponse)
