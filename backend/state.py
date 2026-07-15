@@ -21,10 +21,18 @@ rooms: dict[str, Room] = {}
 lobby_watchers: list[WebSocket] = []
 
 
-def create_room() -> Room:
-    room_id = secrets.token_urlsafe(6)
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
-    room = Room(id=room_id, expires_at=expires_at)
+def create_room(name: str | None = None) -> Room | None:
+    """Create a room. With a custom name, returns None if the name is taken
+    by a non-expired room (expired ones are silently replaced)."""
+    now = datetime.now(timezone.utc)
+    if name is not None:
+        existing = rooms.get(name)
+        if existing is not None and existing.expires_at >= now:
+            return None
+        room_id = name
+    else:
+        room_id = secrets.token_urlsafe(6)
+    room = Room(id=room_id, expires_at=now + timedelta(hours=1))
     rooms[room_id] = room
     return room
 

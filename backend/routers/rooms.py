@@ -5,7 +5,12 @@ from fastapi import APIRouter, HTTPException, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from schemas import RoomCreateResponse, RoomListResponse, RoomStatusResponse
+from schemas import (
+    RoomCreateRequest,
+    RoomCreateResponse,
+    RoomListResponse,
+    RoomStatusResponse,
+)
 from state import broadcast_lobby, create_room, joinable_rooms, rooms
 
 limiter = Limiter(key_func=get_remote_address)
@@ -16,8 +21,17 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 @router.post("/rooms", response_model=RoomCreateResponse)
 @limiter.limit("10/minute")
-async def post_rooms(request: Request):
-    room = create_room()
+async def post_rooms(request: Request, payload: RoomCreateRequest | None = None):
+    name = payload.name if payload is not None else None
+
+    # "lobby" would be shadowed by the WS /ws/lobby route.
+    if name is not None and name.lower() == "lobby":
+        raise HTTPException(status_code=400, detail="That room name is reserved")
+
+    room = create_room(name)
+    if room is None:
+        raise HTTPException(status_code=409, detail="Room name already taken")
+
     await broadcast_lobby()
     return RoomCreateResponse(
         room_id=room.id,

@@ -3,20 +3,28 @@ import { Link, useNavigate } from 'react-router-dom'
 
 import { createRoom } from '../api/rooms'
 
+const ROOM_NAME_RE = /^[A-Za-z0-9]{1,32}$/
+
 export function HomePage() {
   const navigate = useNavigate()
+  const [roomName, setRoomName] = useState('')
   const [joinId, setJoinId] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   const handleCreate = async () => {
+    const name = roomName.trim()
+    if (name && !ROOM_NAME_RE.test(name)) {
+      setError('Room names may only contain letters and numbers (max 32 characters)')
+      return
+    }
     setLoading(true)
     setError('')
     try {
-      const room = await createRoom()
+      const room = await createRoom(name || undefined)
       navigate(`/room/${room.room_id}`)
-    } catch {
-      setError('Failed to create room — is the backend running?')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create room')
       setLoading(false)
     }
   }
@@ -47,6 +55,22 @@ export function HomePage() {
         <p style={{ color: '#dc2626', marginBottom: 16, fontSize: 14 }}>{error}</p>
       )}
 
+      <input
+        value={roomName}
+        onChange={(e) => setRoomName(e.target.value)}
+        placeholder="Room name (optional, letters and numbers only)"
+        maxLength={32}
+        style={{
+          width: '100%',
+          padding: '10px 12px',
+          border: '1px solid #d4d4d8',
+          borderRadius: 8,
+          fontSize: 14,
+          outline: 'none',
+          marginBottom: 10,
+          boxSizing: 'border-box',
+        }}
+      />
       <button
         onClick={handleCreate}
         disabled={loading}

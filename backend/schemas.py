@@ -1,6 +1,16 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class RoomCreateRequest(BaseModel):
+    # Optional custom room name; becomes the room ID. Alphanumeric only.
+    name: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=32,
+        pattern=r"^[A-Za-z0-9]+$",
+    )
 
 
 class RoomCreateResponse(BaseModel):

@@ -83,7 +83,7 @@ Room state is ephemeral by nature — it has no meaningful existence outside an 
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/rooms` | Create a new room; returns `room_id` |
+| `POST` | `/api/rooms` | Create a room; optional body `{"name": "myroom"}` (alphanumeric, ≤32 chars) sets a custom room ID, otherwise a random token is generated. `400` reserved name ("lobby") · `409` name taken · `422` invalid characters |
 | `GET` | `/api/rooms` | List joinable rooms (open seat, not expired) |
 | `GET` | `/api/rooms/{room_id}` | Get room status and participant count |
 | `DELETE` | `/api/rooms/{room_id}` | Manually close a room (host only, future) |
@@ -238,6 +238,8 @@ const VIDEO_CONSTRAINTS: MediaTrackConstraints = {
 ### 5.1 Room ID Security
 
 Room IDs are 8-character URL-safe tokens from `secrets.token_urlsafe(6)` — 48 bits of cryptographic randomness (~1/2^48 per guess). Short enough to share verbally; no sequential or predictable IDs.
+
+Users may instead choose a custom room name (alphanumeric, ≤32 chars) which becomes the room ID. Custom names are guessable by design — combined with the lobby listing, rooms are discoverable rather than secret. The name "lobby" is reserved (it would collide with the `/ws/lobby` route).
 
 ```python
 import secrets
